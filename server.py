@@ -11,12 +11,16 @@ server.listen()
 clients = []
 nicknames = []
 
+serverClosed = threading.Event()
+
 def broadcast(message):
     for client in clients:
         client.send(message)
 
 def handle(client):
-    while True:
+    global serverClosed
+
+    while not serverClosed.is_set():
         try:
             message = client.recv(1024)
             broadcast(message)
@@ -30,21 +34,42 @@ def handle(client):
             break
 
 def receive():
-    while True:
-        client, address = server.accept()
-        print(f"Connected with {str(address)}")
+    global serverClosed
+    try:
+        while not serverClosed.is_set():
+            client, address = server.accept()
+            print(f"Connected with {str(address)}")
 
-        client.send("NICK".encode("ascii"))
-        nickname = client.recv(1024).decode("ascii")
-        nicknames.append(nickname)
-        clients.append(client)
+            client.send("NICK".encode("ascii"))
+            nickname = client.recv(1024).decode("ascii")
+            nicknames.append(nickname)
+            clients.append(client)
 
-        print(f"Nickname of the client is {nickname}.")
-        broadcast(f"{nickname} joined the chat.".encode("ascii"))
-        client.send("Connected to the server.".encode("ascii"))
+            print(f"Nickname of the client is {nickname}.")
+            broadcast(f"{nickname} joined the chat.".encode("ascii"))
+            client.send("Connected to the server.".encode("ascii"))
 
-        thread = threading.Thread(target=handle, args=(client,))
-        thread.start()
+            thread = threading.Thread(target=handle, args=(client,))
+            thread.start()
+    except:
+        print("Server closed.")
+
+def write():
+    global serverClosed
+
+    while not serverClosed.is_set():
+        serverInput = input('')
+        if serverInput == "/stop":
+            # close server
+            serverClosed.set()
+            print("Stopping the server...")
+            broadcast("STOP".encode("ascii"))
+            server.close()
+            break
 
 print("Server is listening...")
-receive()
+receive_thread = threading.Thread(target=receive)
+receive_thread.start()
+
+write_thread = threading.Thread(target=write)
+write_thread.start()
