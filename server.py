@@ -1,7 +1,11 @@
 import threading
 import socket
+import psycopg2
+from dotenv import dotenv_values
 
-host = "127.0.0.1" # localhost
+config = dotenv_values(".env")
+
+host = "" # localhost
 port = 55555
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -10,6 +14,8 @@ server.listen()
 
 clients = []
 nicknames = []
+
+conn = None
 
 serverClosed = threading.Event()
 
@@ -23,6 +29,29 @@ def handle(client):
     while not serverClosed.is_set():
         try:
             message = client.recv(1024)
+
+            # add message to chat history in db
+            print(message.decode("ascii"))
+            try:
+                with psycopg2.connect(
+                            host = config["HOSTNAME"],
+                            dbname = config["DATABASE"],
+                            user = config["USER"],
+                            password = config["PASSWORD"],
+                            port = config["PORT"]) as conn:
+
+                    with conn.cursor() as cur:
+
+                        insert_script = 'INSERT INTO message (content) VALUES (%s)'
+                        insert_value = (message.decode("ascii"),)
+                        cur.execute(insert_script, insert_value)
+
+            except Exception as error:
+                print(error)
+            finally:
+                if conn is not None:
+                    conn.close()
+
             broadcast(message)
         except:
             index = clients.index(client)

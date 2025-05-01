@@ -1,11 +1,15 @@
 import threading
 import socket
 import time
+from dotenv import dotenv_values
+
+config = dotenv_values(".env")
 
 nickname = input("Choose a nickname: ")
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(("127.0.0.1", 55555))
+# client.connect((config["IP"], 55555))
 
 leaving = threading.Event()
 
