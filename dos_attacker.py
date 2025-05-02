@@ -30,7 +30,7 @@ def flood():
         s.send(public_key_bytes)
         time.sleep(1)
         s.close()
-        print("connection closed")
+        print("connection created")
 
 # Create multiple threads to simulate flood
 # for i in range(5):  # Try increasing this number for stronger impact
