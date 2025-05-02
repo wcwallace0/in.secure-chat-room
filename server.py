@@ -1,9 +1,7 @@
 import threading
 import socket
 import psycopg2
-from dotenv import dotenv_values
-
-config = dotenv_values(".env")
+import mydb
 
 host = "" # localhost
 port = 55555
@@ -14,8 +12,6 @@ server.listen()
 
 clients = []
 nicknames = []
-
-conn = None
 
 serverClosed = threading.Event()
 
@@ -33,24 +29,12 @@ def handle(client):
             # add message to chat history in db
             print(message.decode("ascii"))
             try:
-                with psycopg2.connect(
-                            host = config["HOSTNAME"],
-                            dbname = config["DATABASE"],
-                            user = config["USER"],
-                            password = config["PASSWORD"],
-                            port = config["PORT"]) as conn:
-
-                    with conn.cursor() as cur:
-
-                        insert_script = 'INSERT INTO message (content) VALUES (%s)'
-                        insert_value = (message.decode("ascii"),)
-                        cur.execute(insert_script, insert_value)
-
+                with mydb.db_cursor() as cur:
+                    insert_script = 'INSERT INTO message (content) VALUES (%s)'
+                    insert_value = (message.decode("ascii"),)
+                    cur.execute(insert_script, insert_value)
             except Exception as error:
                 print(error)
-            finally:
-                if conn is not None:
-                    conn.close()
 
             broadcast(message)
         except:
@@ -75,6 +59,16 @@ def receive():
             clients.append(client)
 
             print(f"Nickname of the client is {nickname}.")
+
+            # Give connected user a limited message history
+            try:
+                with mydb.db_cursor() as cur:
+                    select_script = 'SELECT content FROM Message ORDER BY message_id DESC LIMIT 10'
+                    cur.execute(select_script)
+                    client.send(messageHistoryString(cur.fetchall()).encode("ascii"))
+            except Exception as error:
+                print(error)
+
             broadcast(f"{nickname} joined the chat.".encode("ascii"))
             client.send("Connected to the server.".encode("ascii"))
 
@@ -88,13 +82,24 @@ def write():
 
     while not serverClosed.is_set():
         serverInput = input('')
-        if serverInput == "/stop":
+        if serverInput == "/s":
             # close server
             serverClosed.set()
             print("Stopping the server...")
             broadcast("STOP".encode("ascii"))
             server.close()
             break
+
+# Takes a list of the latest messages from the database,
+# reverses the order, and concatenates them into a string
+# separated by \n
+def messageHistoryString(messages):
+    if(not messages):
+        return ""
+    history = ""
+    for message in messages[::-1]:
+        history += message[0] + "\n"
+    return history[:-1]
 
 print("Server is listening...")
 receive_thread = threading.Thread(target=receive)

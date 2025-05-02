@@ -29,7 +29,7 @@ def receive():
 def write():
     while not leaving.is_set():
         userInput = input('')
-        if userInput == "/leave":
+        if userInput == "/l":
             leave("Leaving the chat room...")
         elif leaving.is_set():
             break
