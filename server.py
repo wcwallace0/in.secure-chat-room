@@ -6,7 +6,7 @@ import time
 host = "" # localhost
 port = 55555
 MAX_CONNECTIONS = 20
-MAX_CONNECTIONS_PER_MINUTE = 2
+MAX_CONNECTIONS_PER_MINUTE = 20
 connection_history = {} # Store connections timestamps for each IP
 banned_ips = []
 
@@ -103,6 +103,7 @@ def receive():
                 print(error)
 
             broadcast(f"{nickname} joined the chat.".encode("ascii"))
+            time.sleep(0.2)
             client.send("Connected to the server.".encode("ascii"))
 
             thread = threading.Thread(target=handle, args=(client,))
