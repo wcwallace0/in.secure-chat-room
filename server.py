@@ -2,9 +2,22 @@ import threading
 import socket
 import mydb
 import time
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
+
+# Generate RSA Key Pair
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+    backend=default_backend()
+)
+
+public_key = private_key.public_key()
+public_key_bytes = public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+)
 
 host = "" # localhost
 port = 55555
@@ -48,19 +61,36 @@ def handle(client):
 
     while not serverClosed.is_set():
         try:
-            message = client.recv(1024)
-
-            # add message to chat history in db
-            print(message.decode("ascii"))
+            # decrypt message here
+            message = client.recv(4096)
+            print(message)
             try:
-                with mydb.db_cursor() as cur:
-                    insert_script = 'INSERT INTO message (content) VALUES (%s)'
-                    insert_value = (message.decode("ascii"),)
-                    cur.execute(insert_script, insert_value)
-            except Exception as error:
-                print(error)
+                # Attempt to decrypt incoming message
+                plaintext = private_key.decrypt(
+                    message,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
 
-            broadcast(message)
+                plaintextDecoded = plaintext.decode("utf-8")
+                print(plaintext.decode("utf-8"))
+
+                # add message to chat history in db
+                try:
+                    with mydb.db_cursor() as cur:
+                        insert_script = 'INSERT INTO message (content) VALUES (%s)'
+                        insert_value = (plaintextDecoded,)
+                        cur.execute(insert_script, insert_value)
+                except Exception as error:
+                    print(error)
+
+                broadcast(plaintextDecoded)
+
+            except Exception:
+                pass  # Message not intended for this client
         except:
             index = clients.index(client)
             clients.remove(client)
@@ -111,11 +141,14 @@ def receive():
 
             nickname = client.recv(1024).decode("ascii")
             key_data = client.recv(2048)  # Receive public key
-            public_key = serialization.load_pem_public_key(key_data, backend=default_backend())
+            client_public_key = serialization.load_pem_public_key(key_data, backend=default_backend())
+
+            time.sleep(0.2)
+            client.send(public_key_bytes)
 
             nicknames.append(nickname)
             clients.append(client)
-            public_keys[nickname] = public_key
+            public_keys[nickname] = client_public_key
 
             print(f"Nickname of the client is {nickname}.")
 

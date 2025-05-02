@@ -19,6 +19,8 @@ public_key_bytes = public_key.public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
+server_public_key = None
+
 config = dotenv_values(".env")
 
 nickname = input("Choose a nickname: ")
@@ -30,13 +32,19 @@ client.connect(("127.0.0.1", 55555))
 leaving = threading.Event()
 
 def receive():
+    global server_public_key
+    
     while not leaving.is_set():
         try:
             message = client.recv(4096) # receiving from the server
+            print(message)
             if message == b"NICK":
                 client.send(nickname.encode("ascii"))
                 time.sleep(0.1)
                 client.send(public_key_bytes)
+
+                key_data = client.recv(2048)
+                server_public_key = serialization.load_pem_public_key(key_data, backend=default_backend())
             else:
                 try:
                     # Attempt to decrypt incoming message
@@ -68,8 +76,23 @@ def write():
         elif leaving.is_set():
             break
         else:
-            message = f"{nickname}: {userInput}"
-            client.send(message.encode("ascii"))
+            message = f"{nickname}: {userInput}".encode("ascii")
+
+            # Encrypt message here
+            try:
+                if server_public_key:
+                    encrypted_message = server_public_key.encrypt(
+                        message,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    client.send(encrypted_message)
+            except Exception as e:
+                print(e)
+                continue
 
 def leave(message):
     if not leaving.is_set():
