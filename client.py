@@ -64,7 +64,7 @@ def receive():
                 except Exception:
                     pass  # Message not intended for this client
         except Exception as error:
-            print(error)
+            # print(error)
             leave("An error occurred.\nPress Enter to end the process.")
 
 def write():
@@ -90,7 +90,7 @@ def write():
                     )
                     client.send(encrypted_message)
             except Exception as e:
-                print(e)
+                # print(e)
                 continue
 
 def leave(message):
