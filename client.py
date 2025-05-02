@@ -2,6 +2,22 @@ import threading
 import socket
 import time
 from dotenv import dotenv_values
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.backends import default_backend
+
+# Generate RSA Key Pair
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+    backend=default_backend()
+)
+
+public_key = private_key.public_key()
+public_key_bytes = public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+)
 
 config = dotenv_values(".env")
 
@@ -16,14 +32,32 @@ leaving = threading.Event()
 def receive():
     while not leaving.is_set():
         try:
-            message = client.recv(1024).decode("ascii") # receiving from the server
-            if message == "NICK":
+            message = client.recv(4096) # receiving from the server
+            if message == b"NICK":
                 client.send(nickname.encode("ascii"))
-            elif message == "STOP":
-                leave("The chat server has shut down. Disconnecting...\nPress Enter to end the process.")
+                time.sleep(0.1)
+                client.send(public_key_bytes)
             else:
-                print(message)
-        except:
+                try:
+                    # Attempt to decrypt incoming message
+                    plaintext = private_key.decrypt(
+                        message,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+
+                    plaintextDecoded = plaintext.decode("utf-8")
+                    if plaintextDecoded == "STOP":
+                        leave("The chat server has shut down. Disconnecting...\nPress Enter to end the process.")
+                    else:
+                        print(plaintextDecoded)
+                except Exception:
+                    pass  # Message not intended for this client
+        except Exception as error:
+            print(error)
             leave("An error occurred.\nPress Enter to end the process.")
 
 def write():

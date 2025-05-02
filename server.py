@@ -2,13 +2,18 @@ import threading
 import socket
 import mydb
 import time
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.backends import default_backend
 
 host = "" # localhost
 port = 55555
-MAX_CONNECTIONS = 20
-MAX_CONNECTIONS_PER_MINUTE = 20
+MAX_CONNECTIONS = 5
+MAX_CONNECTIONS_PER_MINUTE = 5
 connection_history = {} # Store connections timestamps for each IP
 banned_ips = []
+
+public_keys = {}
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -21,7 +26,22 @@ serverClosed = threading.Event()
 
 def broadcast(message):
     for client in clients:
-        client.send(message)
+        try:
+            recipient_nickname = nicknames[clients.index(client)]
+            recipient_key = public_keys.get(recipient_nickname)
+            if recipient_key:
+                encrypted_message = recipient_key.encrypt(
+                    message,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
+                client.send(encrypted_message)
+        except Exception as e:
+            continue
+                
 
 def handle(client):
     global serverClosed
@@ -60,14 +80,15 @@ def receive():
             # Check if user is allowed to join
             # Refuse connection from banned users
             if client_ip in banned_ips:
-                client.send("STOP".encode("ascii"))
+                print("Client refused: " + client_ip)
+                sendOneEncrypted(client, "STOP".encode("ascii"))
                 continue
 
             # Enforce connection limit (DoS protection)
             if len(clients) >= MAX_CONNECTIONS:
-                client.send("[Server Busy] Too many connections. Try again later.\n".encode("ascii"))
+                sendOneEncrypted(client, "[Server Busy] Too many connections. Try again later.\n".encode("ascii"))
                 time.sleep(0.2)
-                client.send("STOP".encode("ascii"))
+                sendOneEncrypted(client, "STOP".encode("ascii"))
                 continue
 
             # Check if this ip has exceeded connection threshold
@@ -77,7 +98,7 @@ def receive():
                 recent_connections = [t for t in connection_history[client_ip] if current_time - t < 60]
                 if len(recent_connections) >= MAX_CONNECTIONS_PER_MINUTE:
                     print(f"DoS attack detected from IP: {client_ip}. Banning IP from server.")
-                    client.send("STOP".encode("ascii"))
+                    sendOneEncrypted(client, "STOP".encode("ascii"))
                     # Blacklist/ban IP
                     banned_ips.append(client_ip)
                     continue
@@ -87,9 +108,14 @@ def receive():
             print(f"Connected with {str(address)}")
 
             client.send("NICK".encode("ascii"))
+
             nickname = client.recv(1024).decode("ascii")
+            key_data = client.recv(2048)  # Receive public key
+            public_key = serialization.load_pem_public_key(key_data, backend=default_backend())
+
             nicknames.append(nickname)
             clients.append(client)
+            public_keys[nickname] = public_key
 
             print(f"Nickname of the client is {nickname}.")
 
@@ -98,17 +124,18 @@ def receive():
                 with mydb.db_cursor() as cur:
                     select_script = 'SELECT content FROM Message ORDER BY message_id DESC LIMIT 10'
                     cur.execute(select_script)
-                    client.send(messageHistoryString(cur.fetchall()).encode("ascii"))
+                    sendOneEncrypted(client, messageHistoryString(cur.fetchall()).encode("ascii"))
             except Exception as error:
                 print(error)
 
             broadcast(f"{nickname} joined the chat.".encode("ascii"))
             time.sleep(0.2)
-            client.send("Connected to the server.".encode("ascii"))
+            sendOneEncrypted(client, "Connected to the server.".encode("ascii"))
 
             thread = threading.Thread(target=handle, args=(client,))
             thread.start()
-    except:
+    except Exception as error:
+        print(error)
         print("Server closed.")
 
 def write():
@@ -123,6 +150,24 @@ def write():
             broadcast("STOP".encode("ascii"))
             server.close()
             break
+
+def sendOneEncrypted(client, message):
+    try:
+        recipient_nickname = nicknames[clients.index(client)]
+        recipient_key = public_keys.get(recipient_nickname)
+        if recipient_key:
+            encrypted_message = recipient_key.encrypt(
+                message,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            client.send(encrypted_message)
+    except Exception as e:
+        print(e)
+        pass
 
 # Takes a list of the latest messages from the database,
 # reverses the order, and concatenates them into a string
