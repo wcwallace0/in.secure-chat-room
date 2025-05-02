@@ -84,7 +84,8 @@ def handle(client):
                         insert_value = (plaintextDecoded,)
                         cur.execute(insert_script, insert_value)
                 except Exception as error:
-                    print(error)
+                    # print(error)
+                    pass
 
                 broadcast(plaintextDecoded.encode("ascii"))
 
@@ -109,7 +110,7 @@ def receive():
             # Check if user is allowed to join
             # Refuse connection from banned users
             if client_ip in banned_ips:
-                print("Client refused: " + client_ip)
+                # print("Client refused: " + client_ip)
                 sendOneEncrypted(client, "STOP".encode("ascii"))
                 continue
 
@@ -158,7 +159,8 @@ def receive():
                     cur.execute(select_script)
                     sendOneEncrypted(client, messageHistoryString(cur.fetchall()).encode("ascii"))
             except Exception as error:
-                print(error)
+                # print(error)
+                pass
 
             broadcast(f"{nickname} joined the chat.".encode("ascii"))
             time.sleep(0.2)
@@ -167,7 +169,7 @@ def receive():
             thread = threading.Thread(target=handle, args=(client,))
             thread.start()
     except Exception as error:
-        print(error)
+        # print(error)
         print("Server closed.")
 
 def write():
@@ -198,7 +200,7 @@ def sendOneEncrypted(client, message):
             )
             client.send(encrypted_message)
     except Exception as e:
-        print(e)
+        # print(e)
         pass
 
 # Takes a list of the latest messages from the database,
