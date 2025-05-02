@@ -63,7 +63,6 @@ def handle(client):
         try:
             # decrypt message here
             message = client.recv(4096)
-            print(message)
             try:
                 # Attempt to decrypt incoming message
                 plaintext = private_key.decrypt(
@@ -76,7 +75,7 @@ def handle(client):
                 )
 
                 plaintextDecoded = plaintext.decode("utf-8")
-                print(plaintext.decode("utf-8"))
+                print(plaintextDecoded)
 
                 # add message to chat history in db
                 try:
@@ -87,7 +86,7 @@ def handle(client):
                 except Exception as error:
                     print(error)
 
-                broadcast(plaintextDecoded)
+                broadcast(plaintextDecoded.encode("ascii"))
 
             except Exception:
                 pass  # Message not intended for this client

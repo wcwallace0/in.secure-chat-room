@@ -37,7 +37,6 @@ def receive():
     while not leaving.is_set():
         try:
             message = client.recv(4096) # receiving from the server
-            print(message)
             if message == b"NICK":
                 client.send(nickname.encode("ascii"))
                 time.sleep(0.1)
