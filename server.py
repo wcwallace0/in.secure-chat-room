@@ -5,10 +5,6 @@ import time
 
 host = "" # localhost
 port = 55555
-MAX_CONNECTIONS = 20
-MAX_CONNECTIONS_PER_MINUTE = 20
-connection_history = {} # Store connections timestamps for each IP
-banned_ips = []
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -34,9 +30,8 @@ def handle(client):
             print(message.decode("ascii"))
             try:
                 with mydb.db_cursor() as cur:
-                    insert_script = 'INSERT INTO message (content) VALUES (%s)'
-                    insert_value = (message.decode("ascii"),)
-                    cur.execute(insert_script, insert_value)
+                    insert_script = "INSERT INTO message (content) VALUES ('" + message.decode("ascii") + "')"
+                    cur.execute(insert_script)
             except Exception as error:
                 print(error)
 
@@ -55,34 +50,6 @@ def receive():
     try:
         while not serverClosed.is_set():
             client, address = server.accept()
-            client_ip = address[0]
-
-            # Check if user is allowed to join
-            # Refuse connection from banned users
-            if client_ip in banned_ips:
-                client.send("STOP".encode("ascii"))
-                continue
-
-            # Enforce connection limit (DoS protection)
-            if len(clients) >= MAX_CONNECTIONS:
-                client.send("[Server Busy] Too many connections. Try again later.\n".encode("ascii"))
-                time.sleep(0.2)
-                client.send("STOP".encode("ascii"))
-                continue
-
-            # Check if this ip has exceeded connection threshold
-            current_time = time.time()
-            if client_ip in connection_history:
-                connection_history[client_ip].append(current_time)
-                recent_connections = [t for t in connection_history[client_ip] if current_time - t < 60]
-                if len(recent_connections) >= MAX_CONNECTIONS_PER_MINUTE:
-                    print(f"DoS attack detected from IP: {client_ip}. Banning IP from server.")
-                    client.send("STOP".encode("ascii"))
-                    # Blacklist/ban IP
-                    banned_ips.append(client_ip)
-                    continue
-            else:
-                connection_history[client_ip] = [current_time]
 
             print(f"Connected with {str(address)}")
 
