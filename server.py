@@ -3,7 +3,7 @@ import socket
 import mydb
 import time
 
-host = "" # localhost
+host = ""
 port = 55555
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
