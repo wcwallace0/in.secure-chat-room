@@ -32,9 +32,4 @@ def flood():
         s.close()
         print("connection created")
 
-# Create multiple threads to simulate flood
-# for i in range(5):  # Try increasing this number for stronger impact
-#     thread = threading.Thread(target=flood)
-#     thread.start()
-
 flood()
