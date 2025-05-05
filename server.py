@@ -19,7 +19,7 @@ public_key_bytes = public_key.public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
-host = "" # localhost
+host = "" 
 port = 55555
 MAX_CONNECTIONS = 5
 MAX_CONNECTIONS_PER_MINUTE = 5
@@ -84,8 +84,7 @@ def handle(client):
                         insert_value = (plaintextDecoded,)
                         cur.execute(insert_script, insert_value)
                 except Exception as error:
-                    # print(error)
-                    pass
+                    print(error)
 
                 broadcast(plaintextDecoded.encode("ascii"))
 
@@ -110,7 +109,6 @@ def receive():
             # Check if user is allowed to join
             # Refuse connection from banned users
             if client_ip in banned_ips:
-                # print("Client refused: " + client_ip)
                 sendOneEncrypted(client, "STOP".encode("ascii"))
                 continue
 
@@ -129,8 +127,7 @@ def receive():
                 if len(recent_connections) >= MAX_CONNECTIONS_PER_MINUTE:
                     print(f"DoS attack detected from IP: {client_ip}. Banning IP from server.")
                     sendOneEncrypted(client, "STOP".encode("ascii"))
-                    # Blacklist/ban IP
-                    banned_ips.append(client_ip)
+                    banned_ips.append(client_ip) # Blacklist/ban IP
                     continue
             else:
                 connection_history[client_ip] = [current_time]
@@ -159,8 +156,7 @@ def receive():
                     cur.execute(select_script)
                     sendOneEncrypted(client, messageHistoryString(cur.fetchall()).encode("ascii"))
             except Exception as error:
-                # print(error)
-                pass
+                print(error)
 
             broadcast(f"{nickname} joined the chat.".encode("ascii"))
             time.sleep(0.2)
@@ -169,7 +165,7 @@ def receive():
             thread = threading.Thread(target=handle, args=(client,))
             thread.start()
     except Exception as error:
-        # print(error)
+        print(error)
         print("Server closed.")
 
 def write():
@@ -200,8 +196,7 @@ def sendOneEncrypted(client, message):
             )
             client.send(encrypted_message)
     except Exception as e:
-        # print(e)
-        pass
+        print(e)
 
 # Takes a list of the latest messages from the database,
 # reverses the order, and concatenates them into a string
